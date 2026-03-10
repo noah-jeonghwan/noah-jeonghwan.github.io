@@ -1,12 +1,236 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My GitHub Page</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crypto Price Board</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 2rem;
+      text-align: center;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #cbd5e1;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 22px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .coin-name {
+      font-size: 1.15rem;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    .price {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #38bdf8;
+    }
+
+    .change {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .up {
+      color: #22c55e;
+    }
+
+    .down {
+      color: #ef4444;
+    }
+
+    .info-box {
+      background: #0f172a;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 14px;
+      padding: 18px;
+      color: #cbd5e1;
+      line-height: 1.7;
+    }
+
+    .status {
+      margin-top: 16px;
+      font-size: 0.95rem;
+      color: #94a3b8;
+      text-align: center;
+    }
+
+    .button-wrap {
+      text-align: center;
+      margin-top: 18px;
+    }
+
+    button {
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.92;
+    }
+
+    .loading {
+      text-align: center;
+      color: #cbd5e1;
+      margin-top: 18px;
+    }
+  </style>
 </head>
 <body>
-  <h1>안녕하세요</h1>
-  <p>이건 내 GitHub Pages 사이트입니다.</p>
+  <div class="container">
+    <h1>BTC / ETH 실시간 가격표</h1>
+    <div class="subtitle">
+      GitHub Pages + CoinGecko API를 이용한 암호화폐 가격 조회 페이지
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="coin-name">Bitcoin (BTC)</div>
+        <div class="price" id="btc-price">불러오는 중...</div>
+        <div class="change" id="btc-change"></div>
+      </div>
+
+      <div class="card">
+        <div class="coin-name">Ethereum (ETH)</div>
+        <div class="price" id="eth-price">불러오는 중...</div>
+        <div class="change" id="eth-change"></div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <strong>과제 설명</strong><br>
+      이 페이지는 CoinGecko API를 사용하여 비트코인(BTC)과 이더리움(ETH)의 현재 KRW 가격과
+      24시간 변동률을 표시합니다. 페이지는 1분마다 자동으로 새로고침됩니다.
+    </div>
+
+    <div class="button-wrap">
+      <button onclick="fetchPrices()">지금 새로고침</button>
+    </div>
+
+    <div class="status" id="last-updated">마지막 업데이트: -</div>
+    <div class="loading" id="message"></div>
+  </div>
+
+  <script>
+    const API_URL =
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=krw&include_24hr_change=true&include_last_updated_at=true";
+
+    function formatKRW(value) {
+      return new Intl.NumberFormat("ko-KR", {
+        style: "currency",
+        currency: "KRW",
+        maximumFractionDigits: 0
+      }).format(value);
+    }
+
+    function formatPercent(value) {
+      if (value === null || value === undefined) return "-";
+      return `${value.toFixed(2)}%`;
+    }
+
+    function formatTime(unixTime) {
+      if (!unixTime) return "-";
+      const date = new Date(unixTime * 1000);
+      return date.toLocaleString("ko-KR");
+    }
+
+    async function fetchPrices() {
+      const message = document.getElementById("message");
+      message.textContent = "가격 정보를 불러오는 중...";
+
+      try {
+        const response = await fetch(API_URL);
+        if (!response.ok) {
+          throw new Error(`HTTP 오류: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        const btcPrice = data.bitcoin.krw;
+        const ethPrice = data.ethereum.krw;
+
+        const btcChange = data.bitcoin.krw_24h_change;
+        const ethChange = data.ethereum.krw_24h_change;
+
+        const lastUpdated = Math.max(
+          data.bitcoin.last_updated_at || 0,
+          data.ethereum.last_updated_at || 0
+        );
+
+        document.getElementById("btc-price").textContent = formatKRW(btcPrice);
+        document.getElementById("eth-price").textContent = formatKRW(ethPrice);
+
+        const btcChangeEl = document.getElementById("btc-change");
+        btcChangeEl.textContent = `24시간 변동률: ${formatPercent(btcChange)}`;
+        btcChangeEl.className = `change ${btcChange >= 0 ? "up" : "down"}`;
+
+        const ethChangeEl = document.getElementById("eth-change");
+        ethChangeEl.textContent = `24시간 변동률: ${formatPercent(ethChange)}`;
+        ethChangeEl.className = `change ${ethChange >= 0 ? "up" : "down"}`;
+
+        document.getElementById("last-updated").textContent =
+          `마지막 업데이트: ${formatTime(lastUpdated)}`;
+
+        message.textContent = "";
+      } catch (error) {
+        console.error(error);
+        message.textContent = "가격 정보를 가져오지 못했습니다. 잠시 후 다시 시도하세요.";
+      }
+    }
+
+    fetchPrices();
+    setInterval(fetchPrices, 60000);
+  </script>
 </body>
 </html>
